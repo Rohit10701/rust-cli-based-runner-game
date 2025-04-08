@@ -13,17 +13,18 @@ use tokio::net::TcpListener;
 use tokio_rustls::{TlsAcceptor, server::TlsStream};
 use quinn::ReadExactError;
 
-#[path ="common/mod.rs"] mod common;
+mod common;
+
+
+// game
+mod game;
+
 
 #[tokio::main]
 async fn main() {
     setup_tls().await;
-    run_server_over_quic().await;
 }
 
-async fn run_server_over_quic() {
-    println!("run_server_over_quic to be implemented");
-}
 
 async fn setup_tls() {
     let (cert_pem, key_pem) = sign_cert_for_quic();
