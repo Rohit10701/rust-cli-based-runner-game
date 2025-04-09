@@ -15,6 +15,9 @@ quinn="0.11.7"
 rustls-pemfile="2.2.0"
 aws-lc-rs = { version = "1.0.0", optional = true }
 ring = { version = "0.16.20", optional = true }
+serde_json="*"
+chrono="*"
+
 
 [[bin]]
 name = "server"
