@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use tokio::time::{sleep, Duration};
+
 mod quic_server;
 use quic_server::QuicServer;
 
@@ -15,8 +17,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    let server = Arc::new(QuicServer::new("127.0.0.1:8080".to_string(), custom_handler));
-    
+    let server = Arc::new(QuicServer::new(
+        "127.0.0.1:8080".to_string(),
+        Arc::new(custom_handler),
+    ));
+
+    let server_clone = Arc::clone(&server);
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(5)).await;
+            let map = server_clone.connections.lock().unwrap();
+            println!("Active connections: {:?}", map.keys());
+        }
+    });
+
     server.accept_loop().await;
+
     Ok(())
 }

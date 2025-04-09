@@ -1,14 +1,13 @@
 use std::collections::HashMap;
-use std::{fs::File, sync::Arc};
 use std::io::Write;
 use std::net::SocketAddr;
+use std::{fs::File, sync::Arc};
 
-use quinn::{ Connection, Endpoint, Incoming, RecvStream, SendStream, ServerConfig};
+use quinn::{Connecting, Connection, Endpoint, Incoming, RecvStream, SendStream, ServerConfig};
 use rcgen::{generate_simple_self_signed, CertifiedKey};
 use rustls::lock::Mutex;
 use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
-
-
+use tokio::task;
 pub type MessageHandler = Arc<dyn Fn(&[u8]) -> Vec<u8> + Send + Sync>;
 
 /*
@@ -20,25 +19,24 @@ QuicServer
 - handle message from stream
 */
 pub struct QuicServer {
-    // QUIC needs the Endpoint to stay alive while the server is running. 
+    // QUIC needs the Endpoint to stay alive while the server is running.
     // If it's dropped, the server stops listening.
     // By storing it inside the struct, you:
     // - Tie its lifetime to your server
     // - Prevent accidental early drops
     endpoint: Endpoint,
-    message_handler: MessageHandler,
+    message_handler: Arc<MessageHandler>,
 
-    // for storing multiple client so i can send message indvidually 
-    pub connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>
+    // for storing multiple client so i can send message indvidually
+    pub connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
 }
 
-impl QuicServer {    
+impl QuicServer {
     // creates server
-    pub fn new(endpoint_addr: String, message_handler: MessageHandler) -> Self {
+    pub fn new(endpoint_addr: String, message_handler: Arc<MessageHandler>) -> Self {
         let addr: SocketAddr = endpoint_addr.parse().unwrap();
         let server_config = generate_server_config();
-        let endpoint = Endpoint::server(server_config, addr)
-            .expect("Failed to create endpoint");
+        let endpoint = Endpoint::server(server_config, addr).expect("Failed to create endpoint");
 
         Self {
             endpoint,
@@ -47,73 +45,57 @@ impl QuicServer {
         }
     }
 
-    // handle connection 
+    // handle connection
     pub async fn accept_loop(&self) {
-        println!("Server listening on {}", self.endpoint.local_addr().unwrap());
-        
-        while let Some(connecting) = self.endpoint.accept().await {
+        println!(
+            "Server listening on {}",
+            self.endpoint.local_addr().unwrap()
+        );
+
+        let mut incoming = self.endpoint.accept().await;
+
+        while let Some(connecting) = incoming {
             let handler = Arc::clone(&self.message_handler);
-            tokio::spawn(async move {
-                handle_connection(connecting, handler).await;
+            let connections = Arc::clone(&self.connections);
+
+            // Move everything needed into the task
+            task::spawn(async move {
+                if let Err(e) = handle_connection(connecting, handler, connections).await {
+                    eprintln!("Connection failed: {}", e);
+                }
             });
+
+            incoming = self.endpoint.accept().await;
         }
     }
-    
 
-    // to send message back to client
-    pub async fn broadcast(&self, message: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-        let connections = self.connections.lock().unwrap();
-        
-        for connection in connections.values() {
-            println!("{:?}", connection);
-            self.send_message_to_client(connection, message).await?;
-        }
-        
-        Ok(())
-    }
-    
-    pub async fn send_message_to_client(
-        &self, 
-        connection: &Connection, 
-        message: &[u8]
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let (mut send, _recv) = connection.open_bi().await?;
-        
-        send.write_all(message).await?;
-        send.finish();
-        
-        Ok(())
-    }
-
-    pub fn list_connections(&self) -> Arc<Mutex<HashMap<SocketAddr, Connection>>> {
-        self.connections.clone()
-    }
-    
-    fn set_connection(&self){
-        // self.connections.lock().set
-    }
 }
-
-
-
 // helper for handle connections
-async fn handle_connection(connecting: Incoming, message_handler: MessageHandler) {
-    match connecting.await {
-        Ok(connection) => {
-            println!("Connection established from: {}", connection.remote_address());
-            if let Err(e) = process_connection(connection, message_handler).await {
-                eprintln!("Connection error: {}", e);
-            }
-        }
-        Err(e) => {
-            eprintln!("Connection failed: {}", e);
-        }
+pub async fn handle_connection(
+    connecting: Incoming,
+    message_handler: Arc<MessageHandler>,
+    connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let connection = connecting.await?;
+
+    println!(
+        "Connection established from: {}",
+        connection.remote_address()
+    );
+
+    {
+        let mut map = connections.lock().unwrap();
+        map.insert(connection.remote_address(), connection.clone());
     }
+
+    process_connection(connection, message_handler).await?;
+
+    Ok(())
 }
 
 async fn process_connection(
     connection: Connection,
-    message_handler: MessageHandler
+    message_handler: Arc<MessageHandler>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         match connection.accept_bi().await {
@@ -121,48 +103,46 @@ async fn process_connection(
                 if let Err(e) = handle_stream(send, recv, Arc::clone(&message_handler)).await {
                     eprintln!("Stream error: {}", e);
                 }
-            },
+            }
             Err(e) => {
                 println!("Connection ended: {}", e);
                 break;
             }
         }
     }
-    
+
     Ok(())
 }
 
 async fn handle_stream(
     mut send: SendStream,
     mut recv: RecvStream,
-    message_handler: MessageHandler
+    message_handler: MessageHandler,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut buffer = vec![0; 1024];
-    
+
     match recv.read(&mut buffer).await? {
         Some(bytes) => {
             let data = &buffer[..bytes];
-            
+
             if let Ok(message) = std::str::from_utf8(data) {
                 println!("Received message: {}", message);
             } else {
                 println!("Received binary data: {} bytes", bytes);
             }
-            
+
             let response = message_handler(data);
-            
+
             send.write_all(&response).await?;
             send.finish();
-        },
+        }
         None => {
             println!("Empty stream received");
         }
     }
-    
+
     Ok(())
 }
-
-
 
 // handling tls
 pub fn generate_sign_cert() -> (String, String) {
