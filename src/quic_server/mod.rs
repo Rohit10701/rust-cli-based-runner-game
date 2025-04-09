@@ -69,6 +69,49 @@ impl QuicServer {
         }
     }
 
+    // handle message 
+    pub async fn send_to(&self, addr: SocketAddr, data: &[u8]) -> Result<(), String> {
+        if let Some(conn) = self.get_connection(&addr) {
+            match conn.open_bi().await {
+                Ok((mut send, _recv)) => {
+                    send.write_all(data).await.map_err(|e| e.to_string())?;
+                    send.finish().map_err(|e| e.to_string())?;
+                    Ok(())
+                }
+                Err(e) => Err(format!("Failed to open stream: {}", e)),
+            }
+        } else {
+            Err(format!("No connection for address: {}", addr))
+        }
+    }
+
+    pub async fn broadcast(&self, data: &[u8]) {
+    let connections = Arc::clone(&self.connections);
+    let data = data.to_vec();
+
+    // Lock outside spawn
+    let locked_connections = connections.lock().unwrap().clone();
+
+    for (addr, conn) in locked_connections {
+        let conn = conn.clone();
+        let data = data.clone();
+
+        tokio::spawn(async move {
+            if let Ok((mut send, _recv)) = conn.open_bi().await {
+                if let Err(e) = send.write_all(&data).await {
+                    eprintln!("Failed to send to {}: {}", addr, e);
+                }
+                let _ = send.finish();
+            }
+        });
+    }
+}
+
+    pub fn get_connection(&self, addr: &SocketAddr) -> Option<Connection> {
+        let connections = self.connections.lock().unwrap();
+        connections.get(addr).cloned()
+    }
+
 }
 // helper for handle connections
 pub async fn handle_connection(

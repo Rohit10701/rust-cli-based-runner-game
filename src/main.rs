@@ -30,6 +30,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Active connections: {:?}", map.keys());
         }
     });
+    let server_clone = Arc::clone(&server);
+    tokio::spawn(async move {
+        loop {
+            sleep(Duration::from_secs(5)).await;
+    
+            let msg = format!("Ping from server at {:?}", chrono::Utc::now());
+    
+            server_clone.broadcast(&msg.clone().into_bytes()).await;
+            println!("Sent! {}", msg)
+        }
+    });
 
     server.accept_loop().await;
 

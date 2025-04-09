@@ -55,7 +55,25 @@ impl QuicClient {
             }
         }
     }
-}
+    pub async fn listen_for_server_messages(connection: Connection) {
+        tokio::spawn(async move {
+            loop {
+                match connection.accept_bi().await {
+                    Ok((_send, mut recv)) => {
+                        let mut buffer = vec![0; 1024];
+                        if let Ok(Some(bytes)) = recv.read(&mut buffer).await {
+                            let message = String::from_utf8_lossy(&buffer[..bytes]);
+                            println!("Received broadcast: {}", message);
+                        }
+                    },
+                    Err(e) => {
+                        println!("Error accepting stream from server: {}", e);
+                        break;
+                    }
+                }
+            }
+        });
+    }}
 
 fn generate_root_cert() -> Result<RootCertStore, Box<dyn std::error::Error>> {
     let cert_path = "cert.pem";
