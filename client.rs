@@ -60,26 +60,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             hp: 100,
         },
     }));
-    
-    let game_state_clone = Arc::clone(&game_state);
-
-
-    tokio::spawn(
-        async move {
-            let backend_game_state = QuicClient::listen_for_server_messages(Arc::clone(&connection)).await;
-            let mut game_state_lock = game_state_clone.lock().await;
-            *game_state_lock = backend_game_state;
-        }
-    );
+ 
 
     {
-        let game_state_clone: Arc<Mutex<GameState>> = Arc::clone(&game_state);
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-
-                let state = game_state_clone.lock().await;
-                render_map(&state);
+                tokio::time::sleep(std::time::Duration::from_millis(16)).await;
+                let backend_game_state = QuicClient::listen_for_server_messages(Arc::clone(&connection)).await;
+                render_map(&backend_game_state);
             }
         });
     }
@@ -132,7 +120,7 @@ fn render_map(state: &GameState) {
     let mut map = vec![vec![' '; map_width]; map_height];
 
     std::process::Command::new("clear").status().unwrap();
-
+    println!("{:?}", state);
     if state.player.y < map_height && state.player.x < map_width {
         map[state.player.y][state.player.x] = 'P';
     }
