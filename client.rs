@@ -26,8 +26,16 @@ pub struct Player {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Enemy {
+    pub x: usize,
+    pub y: usize,
+}
+
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct GameState {
     pub player: Player,
+    pub enemies : Vec<Enemy>
 }
 
 /*
@@ -61,13 +69,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             hp: 100,
             score: 0
         },
+        enemies: vec![]
     }));
  
 
     {
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_millis(16)).await;
                 let backend_game_state = QuicClient::listen_for_server_messages(Arc::clone(&connection)).await;
                 render_map(&backend_game_state);
             }
@@ -127,6 +135,11 @@ fn render_map(state: &GameState) {
         map[state.player.y][state.player.x] = '^';
     }
 
+    for enemy in &state.enemies {
+        if enemy.y < map_height && enemy.x < map_width {
+            map[enemy.y][enemy.x] = 'E';
+        }
+    }
     for row in map.iter().rev() {
         let row_string: String = row.iter().collect();
         print!("|{}|\n\r", row_string);

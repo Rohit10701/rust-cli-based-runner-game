@@ -15,9 +15,17 @@ pub struct Player {
     pub score : usize
 }
 
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Enemy {
+    pub x: usize,
+    pub y: usize,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameState {
     pub player: Player,
+    pub enemies : Vec<Enemy>,
 }
 
 /*
