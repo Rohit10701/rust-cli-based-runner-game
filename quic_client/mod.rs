@@ -63,7 +63,7 @@ impl QuicClient {
                         let mut buffer = vec![0; 1024];
                         if let Ok(Some(bytes)) = recv.read(&mut buffer).await {
                             let message = String::from_utf8_lossy(&buffer[..bytes]);
-                            println!("Received broadcast: {}", message);
+                            // println!("Received broadcast: {}", message);
                         }
                     },
                     Err(e) => {

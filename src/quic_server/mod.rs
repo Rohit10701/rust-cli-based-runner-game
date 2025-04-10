@@ -25,7 +25,7 @@ pub struct QuicServer {
     // - Tie its lifetime to your server
     // - Prevent accidental early drops
     endpoint: Endpoint,
-    message_handler: Arc<MessageHandler>,
+    message_handler: MessageHandler,
 
     // for storing multiple client so i can send message indvidually
     pub connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
@@ -33,7 +33,7 @@ pub struct QuicServer {
 
 impl QuicServer {
     // creates server
-    pub fn new(endpoint_addr: String, message_handler: Arc<MessageHandler>) -> Self {
+    pub fn new(endpoint_addr: String, message_handler: MessageHandler) -> Self {
         let addr: SocketAddr = endpoint_addr.parse().unwrap();
         let server_config = generate_server_config();
         let endpoint = Endpoint::server(server_config, addr).expect("Failed to create endpoint");
@@ -112,11 +112,15 @@ impl QuicServer {
         connections.get(addr).cloned()
     }
 
+    pub async fn listen_client(&self){
+
+    }
+
 }
 // helper for handle connections
 pub async fn handle_connection(
     connecting: Incoming,
-    message_handler: Arc<MessageHandler>,
+    message_handler: MessageHandler,
     connections: Arc<Mutex<HashMap<SocketAddr, Connection>>>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let connection = connecting.await?;
@@ -138,7 +142,7 @@ pub async fn handle_connection(
 
 async fn process_connection(
     connection: Connection,
-    message_handler: Arc<MessageHandler>,
+    message_handler: MessageHandler,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         match connection.accept_bi().await {

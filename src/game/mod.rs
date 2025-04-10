@@ -1,24 +1,22 @@
-use std::time::{Duration, Instant};
-use std::thread;
-use std::io::{self, Write};
+use serde::{Serialize, Deserialize};
 
-enum Tiles {
-    Wall,
-    Floor,
-    Fruit,
-    Enemy,
-    Player
+#[derive(Debug, Serialize, Deserialize)]
+pub enum InputCommand {
+    MoveLeft,
+    MoveRight,
+    None,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Player {
-    pub x : usize,
-    pub y : usize,
-    pub hp: u32
+    pub x: usize,
+    pub y: usize,
+    pub hp: u32,
 }
 
-enum Direction {
-    Left,
-    Right
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GameState {
+    pub player: Player,
 }
 
 /*
@@ -37,8 +35,4 @@ left right is like 100ms
 
 */
 
-pub fn main(direction : Direction){
-    let mut player = Player { x: 0, y: 0, hp : 100 };
-    let tick_rate = Duration::from_millis(100);
 
-}
