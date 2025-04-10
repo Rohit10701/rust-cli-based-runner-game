@@ -173,7 +173,7 @@ async fn handle_stream(
             let data = &buffer[..bytes];
 
             if let Ok(message) = std::str::from_utf8(data) {
-                println!("Received message: {}", message);
+                // println!("Received message: {}", message);
             } else {
                 println!("Received binary data: {} bytes", bytes);
             }

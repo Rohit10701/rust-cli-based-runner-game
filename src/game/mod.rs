@@ -26,6 +26,8 @@ pub struct Enemy {
 pub struct GameState {
     pub player: Player,
     pub enemies : Vec<Enemy>,
+    pub game_over: bool, 
+    pub message : String
 }
 
 /*
