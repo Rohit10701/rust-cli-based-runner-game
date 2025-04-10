@@ -120,15 +120,18 @@ fn render_map(state: &GameState) {
     let mut map = vec![vec![' '; map_width]; map_height];
 
     std::process::Command::new("clear").status().unwrap();
-    println!("{:?}", state);
+
     if state.player.y < map_height && state.player.x < map_width {
         map[state.player.y][state.player.x] = 'P';
     }
 
-    println!("Map:");
-    for row in map.iter() {
-        println!("|{}|", row.iter().collect::<String>());
+    for row in map.iter().rev() {
+        let row_string: String = row.iter().collect();
+        print!("|{}|\n\r", row_string);
     }
 
     println!("\nPlayer Stats: {:?}", state.player);
 }
+
+
+
