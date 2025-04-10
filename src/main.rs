@@ -168,7 +168,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("crashed {:?} - {:?}", enemy, state.player);
                         if enemy.x == state.player.x && enemy.y == state.player.y {
                             state.game_over = true;
-                            state.message = "Game Over! Press 'r' to restart or 'q' to quit".to_string();
+                            state.message = "Game Over! Press 'q' to quit".to_string();
 
                             break;
                         }
