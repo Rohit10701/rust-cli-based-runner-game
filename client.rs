@@ -22,6 +22,7 @@ pub struct Player {
     pub x: usize,
     pub y: usize,
     pub hp: u32,
+    pub score : usize
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -58,6 +59,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             x: 0,
             y: 0,
             hp: 100,
+            score: 0
         },
     }));
  
@@ -122,7 +124,7 @@ fn render_map(state: &GameState) {
     std::process::Command::new("clear").status().unwrap();
 
     if state.player.y < map_height && state.player.x < map_width {
-        map[state.player.y][state.player.x] = 'P';
+        map[state.player.y][state.player.x] = '^';
     }
 
     for row in map.iter().rev() {

@@ -1,4 +1,4 @@
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Local, TimeZone, Utc};
 use game::{GameState, InputCommand, Player};
 use serde_json;
 use std::sync::Arc;
@@ -7,7 +7,6 @@ use tokio::time::{sleep, Duration};
 mod quic_server;
 use quic_server::QuicServer;
 use tokio::sync::Mutex;
-
 mod game;
 
 #[tokio::main]
@@ -72,6 +71,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             x: 6,
             y: 4,
             hp: 100,
+            score: 0
         },
     }));
 
@@ -79,12 +79,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let state = Arc::clone(&state);
         let inputs = Arc::clone(&latest_input);
         let server_clone = Arc::clone(&server);
+        let mut start_time: DateTime<Utc> = Utc.with_ymd_and_hms(2015, 5, 15, 0, 0, 0).unwrap();
         tokio::spawn(async move {
             loop {
                 sleep(Duration::from_millis(100)).await;
-        
+                
                 let mut state = state.lock().await;
                 let input = inputs.lock().await.clone();
+                let current_time: DateTime<Utc> = Utc::now();
+                let delta = current_time - start_time;
+                let delta_secs = delta.num_seconds() as usize;
+                
+                if delta_secs > 1 {
+                    state.player.score += 1;
+                    start_time = current_time;
+                }
         
                 match input.as_str() {
                     "MoveLeft" => {
@@ -113,6 +122,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 server_clone.broadcast(json.as_bytes()).await;
             }
         });
+        
         
     }
     let server_clone: Arc<QuicServer> = Arc::clone(&server);

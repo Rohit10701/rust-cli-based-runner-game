@@ -12,6 +12,7 @@ pub struct Player {
     pub x: usize,
     pub y: usize,
     pub hp: u32,
+    pub score : usize
 }
 
 #[derive(Debug, Serialize, Deserialize)]
