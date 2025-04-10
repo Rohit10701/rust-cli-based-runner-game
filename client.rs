@@ -207,7 +207,7 @@ fn render_map(state: &GameState) -> Option<String> {
     }
 
     if state.player.y < map_height && state.player.x < map_width {
-        map[state.player.y][state.player.x] = '^';
+        map[state.player.y][state.player.x] = 'P';
     }
 
     for enemy in &state.enemies {
