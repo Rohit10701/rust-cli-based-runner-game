@@ -3,6 +3,10 @@ use std::{fs::File, io::BufReader, net::SocketAddr, sync::Arc};
 use quinn::{ClientConfig, Connection, Endpoint};
 use rustls::{RootCertStore};
 use tokio::io::AsyncWriteExt;
+use serde_json;
+use tokio::net::TcpStream;
+use tokio::io::AsyncReadExt;
+use crate::GameState;
 
 pub struct QuicClient {
     pub endpoint: Endpoint,
@@ -17,14 +21,12 @@ impl QuicClient {
     }
 
     pub async fn connect(&mut self, server_addr: String) -> Result<Connection, Box<dyn std::error::Error>> {
-        // Configure with root certificates
         let roots = generate_root_cert()?;
         let client_config = ClientConfig::with_root_certificates(Arc::new(roots));
         match client_config {
             Ok(config) => {
                 self.endpoint.set_default_client_config(config);
             
-                // Parse server address and connect
                 let server_addr: SocketAddr = server_addr.parse()?;
                 let connection = self.endpoint.connect(server_addr, "localhost")?.await?;
                 println!("Connected to server: {}", connection.remote_address());
@@ -35,15 +37,13 @@ impl QuicClient {
          }   
     }
     
-    pub async fn send_message(&self, connection: &Connection, message: &str) -> Result<String, Box<dyn std::error::Error>> {
-        // Open a bidirectional stream
+    pub async fn send_message(&self, connection: &Arc<Connection>, message: &str) -> Result<String, Box<dyn std::error::Error>> {
         let (mut send, mut recv) = connection.open_bi().await?;
         
         // Send the message
         send.write_all(message.as_bytes()).await?;
         send.finish();
         
-        // Receive the response
         let mut buffer = vec![0u8; 1024];
         match recv.read(&mut buffer).await? {
             Some(bytes) => {
@@ -55,25 +55,36 @@ impl QuicClient {
             }
         }
     }
-    pub async fn listen_for_server_messages(connection: Connection) {
+
+    
+    pub async fn listen_for_server_messages(connection: Arc<Connection>) -> GameState {
         tokio::spawn(async move {
             loop {
                 match connection.accept_bi().await {
                     Ok((_send, mut recv)) => {
                         let mut buffer = vec![0; 1024];
                         if let Ok(Some(bytes)) = recv.read(&mut buffer).await {
-                            let message = String::from_utf8_lossy(&buffer[..bytes]);
-                            // println!("Received broadcast: {}", message);
+                            let message = &buffer[..bytes];
+                            
+                            match serde_json::from_slice::<GameState>(message) {
+                                Ok(game_state) => {
+                                    return game_state;
+                                },
+                                Err(e) => {
+                                    println!("Failed to deserialize GameState: {}", e);
+                                }
+                            }
                         }
                     },
                     Err(e) => {
                         println!("Error accepting stream from server: {}", e);
-                        break;
                     }
                 }
             }
-        });
-    }}
+        }).await.unwrap()
+    }
+    
+}
 
 fn generate_root_cert() -> Result<RootCertStore, Box<dyn std::error::Error>> {
     let cert_path = "cert.pem";

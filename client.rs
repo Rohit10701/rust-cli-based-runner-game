@@ -50,26 +50,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = quic_client::QuicClient::new();
 
     println!("Connecting to QUIC server...");
-    let connection = client.connect("127.0.0.1:8080".to_string()).await?;
+    let connection = Arc::new(client.connect("127.0.0.1:8080".to_string()).await?);
+    let clone_connection = Arc::clone(&connection);
     println!("Successfully connected to server!");
-
-    tokio::spawn(QuicClient::listen_for_server_messages(connection.clone()));
-
     let game_state = Arc::new(Mutex::new(GameState {
         player: Player {
-            x: 6,
-            y: 4,
+            x: 0,
+            y: 0,
             hp: 100,
         },
     }));
+    
+    let game_state_clone = Arc::clone(&game_state);
+
+
+    tokio::spawn(
+        async move {
+            let backend_game_state = QuicClient::listen_for_server_messages(Arc::clone(&connection)).await;
+            let mut game_state_lock = game_state_clone.lock().await;
+            *game_state_lock = backend_game_state;
+        }
+    );
 
     {
-        let game_state = Arc::clone(&game_state);
+        let game_state_clone: Arc<Mutex<GameState>> = Arc::clone(&game_state);
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
 
-                let state = game_state.lock().await;
+                let state = game_state_clone.lock().await;
                 render_map(&state);
             }
         });
@@ -79,7 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let message = fetch_input().await;
 
         if let Some(msg) = message {
-            match client.send_message(&connection, &msg).await {
+            match client.send_message(&Arc::clone(&clone_connection), &msg).await {
                 Ok(response) => {
                     // println!("Server response: {}", response)
                 },

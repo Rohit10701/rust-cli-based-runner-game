@@ -107,6 +107,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     state.player.y -= 1;
                 }
         
+                println!("{:?}", *state);
                 let json = serde_json::to_string(&*state).unwrap();
                 // println!("Broadcasting: {}", json); // Add logging for state
                 server_clone.broadcast(json.as_bytes()).await;
